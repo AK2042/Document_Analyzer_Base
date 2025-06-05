@@ -1,4 +1,4 @@
-# Document Analyzer with LLaMA, Groq, Google Generative AI Embeddings & OCR
+# Document Analyzer with OCR
 
 A document analysis app that allows you to upload PDF files, extract and summarize their content, and interactively ask questions about them. It leverages the Meta LLaMA 4 model, Google Generative AI embeddings for vector search, and uses OCR only when necessary for scanned or image-based PDFs.
 
