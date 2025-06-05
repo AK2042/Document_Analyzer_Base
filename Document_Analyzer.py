@@ -2,6 +2,7 @@ import gradio as gr
 import os
 from dotenv import load_dotenv
 import fitz  # PyMuPDF
+import tempfile
 from langchain_core.documents import Document
 from langchain_groq import ChatGroq
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -10,6 +11,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from OCR import extract_text_from_pdf_ocr, extract_text_from_image
+
 
 load_dotenv()
 
@@ -81,26 +84,68 @@ def generate_summary(docs):
 
 def handle_upload(file):
     global VECTORS, SUMMARY
-
     if file is None:
-        return "No file uploaded."
+        return "No file provided."
 
-    docs = load_pdf_from_memory(file)
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    docs = []
 
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    split_docs = text_splitter.split_documents(docs)
+    try:
+        tmp_file_path = file
+        pdf = fitz.open(tmp_file_path)
 
-    VECTORS = FAISS.from_documents(split_docs, embeddings)
-    SUMMARY = generate_summary(split_docs)
+        for i, page in enumerate(pdf):
+            text = ""
+            if isinstance(file, str):
+                tmp_file_path = file
+            elif hasattr(file, "name"):
+                tmp_file_path = file.name
+            else:
+                return "Unsupported file format."
 
-    return SUMMARY
+            if not text or len(text) < 10:
+                # Fallback to OCR
+                try:
+                    pix = page.get_pixmap(dpi=300)
+                    image_path = f"{tmp_file_path}_page_{i}.png"
+                    pix.save(image_path)
+
+                    text = extract_text_from_image(image_path)
+                    os.remove(image_path)
+                    if not text.strip():
+                        text = "[No text could be extracted from this page]"
+                except Exception as e:
+                    text = f"[OCR failed: {str(e)}]"
+
+            docs.append(Document(page_content=text, metadata={"page": i + 1}))
+
+        pdf.close()
+        os.remove(tmp_file_path)
+        if all(not doc.page_content.strip() or "[No text" in doc.page_content for doc in docs):
+            try:
+                docs = extract_text_from_pdf_ocr(tmp_file_path)
+            except Exception as e:
+                return f"Full OCR fallback failed: {str(e)}"
+
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        split_docs = text_splitter.split_documents(docs)
+
+        VECTORS = FAISS.from_documents(split_docs, embeddings)
+        SUMMARY = generate_summary(split_docs)
+
+        return SUMMARY
+
+    except Exception as e:
+        return f"Error processing document: {str(e)}"
+
+
 
 def handle_question(chat_history, user_input):
-    global VECTORS
+    global VECTORS, CHAT_HISTORY
     if not VECTORS:
         chat_history = chat_history or []
         chat_history.append((user_input, "Please upload a document first."))
+        CHAT_HISTORY = chat_history
         return chat_history
 
     document_chain = create_stuff_documents_chain(llm, main_prompt)
@@ -124,14 +169,14 @@ def reset_all():
     VECTORS = None
     SUMMARY = None
     CHAT_HISTORY = []
-    return "", "", "", []
+    return gr.update(value=None),"", [], ""
 
 # Gradio UI
 with gr.Blocks() as demo:
     gr.Markdown("## Document Summarizer and Chat Q&A")
 
     with gr.Row():
-        upload_box = gr.File(label="Upload PDF", file_types=[".pdf"])
+        upload_box = gr.File(label="Upload PDF", file_types=[".pdf"], file_count="single")
         summary_output = gr.Textbox(label="Summary", lines=10)
 
     chatbot = gr.Chatbot(label="Chat with your documents")
@@ -146,6 +191,6 @@ with gr.Blocks() as demo:
     upload_box.change(fn=handle_upload, inputs=upload_box, outputs=summary_output)
     question_input.submit(fn=handle_question, inputs=[chatbot, question_input], outputs=chatbot)
     question_input.submit(lambda: "", None, question_input)
-    reset_btn.click(fn=reset_all, outputs=[summary_output, chatbot, question_input,upload_box])
+    reset_btn.click(fn=reset_all, outputs=[upload_box, summary_output, chatbot, question_input])
 
-demo.launch()
+demo.launch(server_name="0.0.0.0", server_port=7860, share=True)

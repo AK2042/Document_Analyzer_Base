@@ -1,9 +1,11 @@
 gradio
+python-dotenv
+pytesseract
+PyMuPDF
+opencv-python-headless
+Pillow
 langchain
 langchain-community
-langchain-core
-langchain-groq
 langchain-google-genai
-PyMuPDF
-python-dotenv
+langchain-groq
 faiss-cpu
