@@ -4,7 +4,7 @@ A document analysis app that allows you to upload PDF files, extract and summari
 
 ---
 
-## Live Demo
+### Live Demo
 
 [Hugging Face Space](https://ak2042-document-analyzer.hf.space/)
 
