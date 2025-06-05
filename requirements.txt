@@ -1,0 +1,9 @@
+gradio
+langchain
+langchain-community
+langchain-core
+langchain-groq
+langchain-google-genai
+PyMuPDF
+python-dotenv
+faiss-cpu
