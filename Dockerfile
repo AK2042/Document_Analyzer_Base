@@ -7,7 +7,6 @@ RUN apt-get update && apt-get install -y \
     libsm6 \
     libxrender1 \
     libxext6 \
-    libgl1-mesa-glx \
     libgl1 \
     poppler-utils \
     build-essential \
@@ -26,9 +25,9 @@ RUN apt-get update && apt-get install -y \
     libxvidcore-dev \
     libx264-dev \
     libgtk-3-dev \
-    libatlas-base-dev \
+    libopenblas-dev \
     gfortran \
-    && apt-get clean
+    && rm -rf /var/lib/apt/lists/*
 
 ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata/
 
